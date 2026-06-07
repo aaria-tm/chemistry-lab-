@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aaria's Magic Lab</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    /* Apply custom fonts */
+    body { font-family: 'Nunito', sans-serif; }
+    h1, h2, .magic-title { font-family: 'Fredoka', sans-serif; }
+    
+    /* Smooth Scrollbar for the menu */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,192,203,0.8); border-radius: 10px; }
+    
+    /* Frosted Glass Utilities */
+    .glass {
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 8px 32px rgba(132, 106, 203, 0.15);
+    }
+    
+    canvas {
+      /* Keep canvas background transparent so the CSS glass effect shows through */
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100 text-slate-800 min-h-screen p-4 md:p-6 flex justify-center items-center">
+
+  <div class="max-w-6xl w-full grid grid-cols-1 md:grid-cols-12 gap-6 h-[90vh] min-h-[700px]">
+    
+    <div class="col-span-1 md:col-span-4 glass rounded-3xl p-6 flex flex-col h-full overflow-hidden relative">
+      
+      <div class="absolute top-4 right-4 text-2xl animate-pulse">✨</div>
+      <div class="absolute bottom-10 left-4 text-xl animate-bounce">🫧</div>
+
+      <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500 mb-6 drop-shadow-sm flex items-center gap-2">
+        Aaria's Magic Lab
+      </h1>
+
+      <div class="flex flex-col gap-3 mb-6 overflow-y-auto pr-2" id="menu-buttons">
+        </div>
+
+      <div class="mt-auto bg-white/50 p-5 rounded-2xl border border-white/60 shadow-inner">
+        <h2 id="info-title" class="text-xl font-bold text-purple-700 mb-2">Title</h2>
+        <div class="bg-purple-100/80 text-purple-800 font-mono font-bold p-3 rounded-xl text-sm text-center mb-3 shadow-sm" id="info-formula">
+          Equation
+        </div>
+        <p id="info-desc" class="text-slate-600 text-sm leading-relaxed font-semibold">Description goes here.</p>
+      </div>
+    </div>
+
+    <div class="col-span-1 md:col-span-8 flex flex-col gap-4 h-full">
+      
+      <div class="glass rounded-2xl p-4 flex items-center gap-4 relative overflow-hidden">
+        <div class="absolute right-0 top-0 h-full w-2 bg-gradient-to-b from-pink-400 to-purple-500"></div>
+        <div class="bg-white p-3 rounded-xl shadow-sm text-2xl">🔬</div>
+        <div>
+          <p class="text-xs font-extrabold text-purple-400 uppercase tracking-widest mb-1">Beaker Contents Scanner</p>
+          <p id="contents-text" class="text-lg font-bold text-slate-700 font-mono">Scanning...</p>
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl p-4 flex flex-wrap justify-between items-center gap-4">
+        <p class="text-slate-500 font-semibold" id="status-text">Ready to experiment.</p>
+        <div class="flex flex-wrap gap-2" id="action-buttons-container">
+          </div>
+      </div>
+
+      <div class="glass rounded-3xl flex-grow overflow-hidden relative flex justify-center items-end pb-8">
+        <canvas id="chemCanvas" width="800" height="500"></canvas>
+      </div>
+      
+    </div>
+  </div>
+
+  <script>
+    // --- 1. SETUP CANVAS & ANIMATION STATE ---
+    const canvas = document.getElementById('chemCanvas');
+    const ctx = canvas.getContext('2d');
+    let animationFrameId;
+    let particles = [];
+    let crystals = [];
+    let state = { phase: 'idle', color: [0,0,0,0], targetColor: [0,0,0,0], level: 0, targetLevel: 0 };
+    let currentExpId = null;
+
+    const lerp = (start, end, amt) => (1 - amt) * start + amt * end;
+
+    // --- 2. EXPERIMENT DATABASE ---
+    const experiments = {
+      volcano: {
+        title: "The Volcano",
+        formula: "NaHCO₃ + Acid → H₂O + CO₂ 🫧",
+        desc: "Vinegar mixes with baking soda. They break each other apart, creating a ton of carbon dioxide gas that bubbles up and escapes!",
+        startContents: "Vinegar (CH₃COOH) [Liquid]",
+        init: () => {
+          state = { phase: 'idle', color: [255, 180, 200, 0.8], targetColor: [255, 180, 200, 0.8], level: 120, targetLevel: 120 };
+          particles = []; crystals = [];
+        },
+        buttons: [{
+          text: "🥄 Add Baking Soda",
+          color: "bg-pink-400 hover:bg-pink-500 text-white",
+          action: () => {
+            if(state.phase === 'reacting') return;
+            state.phase = 'reacting';
+            state.targetLevel = 380; 
+            document.getElementById('contents-text').innerHTML = "Sodium Acetate + Water + <span class='text-pink-500 animate-pulse'>CO₂ [Gas Escaping!]</span>";
+            document.getElementById('status-text').innerText = "Look at those bubbles expand!";
+          }
+        }],
+        update: () => {
+          state.level = lerp(state.level, state.targetLevel, 0.02);
+          if (state.phase === 'reacting') {
+            for(let i=0; i<6; i++) {
+              particles.push({
+                x: 400 + (Math.random() - 0.5) * 160, y: 450 - Math.random() * state.level,
+                vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 4 - 2,
+                radius: Math.random() * 12 + 4, alpha: 0.8
+              });
+            }
+          }
+          particles.forEach(p => { p.y += p.vy; p.x += p.vx; p.alpha -= 0.01; p.radius += 0.1; });
+          particles = particles.filter(p => p.alpha > 0);
+        },
+        draw: (ctx) => {
+          drawBeaker(ctx);
+          drawLiquid(ctx, `rgba(${state.color.join(',')})`, state.level, 200);
+          drawBubbles(ctx, particles);
+        }
+      },
+
+      geyser: {
+        title: "The Geyser",
+        formula: "CO₂(aq) → CO₂(g) 🚀",
+        desc: "A physical reaction! The rough surface of the candy gives the trapped gas inside the soda a place to instantly form bubbles and rush out.",
+        startContents: "Soda (H₂O + Dissolved CO₂)",
+        init: () => {
+          state = { phase: 'idle', color: [180, 140, 100, 0.8], level: 180 };
+          particles = []; crystals = [];
+        },
+        buttons: [{
+          text: "🍬 Drop Candy",
+          color: "bg-orange-400 hover:bg-orange-500 text-white",
+          action: () => {
+            state.phase = 'reacting';
+            document.getElementById('contents-text').innerHTML = "Flat Soda + <span class='text-orange-500 animate-pulse'>Escaping CO₂ Gas!</span>";
+          }
+        }],
+        update: () => {
+          if (state.phase === 'reacting' && particles.length < 400) {
+            for(let i=0; i<15; i++) {
+              particles.push({
+                x: 400 + (Math.random() - 0.5) * 30, y: 300,
+                vx: (Math.random() - 0.5) * 4, vy: -Math.random() * 18 - 8,
+                radius: Math.random() * 6 + 2, alpha: 1.0
+              });
+            }
+          }
+          particles.forEach(p => { p.vy += 0.5; p.x += p.vx; p.y += p.vy; p.alpha -= 0.008; });
+          particles = particles.filter(p => p.alpha > 0 || p.y < 500);
+        },
+        draw: (ctx) => {
+          drawBottle(ctx);
+          drawLiquid(ctx, `rgba(180, 140, 100, 0.8)`, state.level, 150);
+          ctx.fillStyle = 'rgba(255, 230, 200, 0.8)';
+          particles.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill(); });
+        }
+      },
+
+      dissolve: {
+        title: "Disappearing Act",
+        formula: "NaCl(s) → Na⁺(aq) + Cl⁻(aq)",
+        desc: "Water acts like a tiny magnet, pulling the solid salt crystals apart until they are completely invisible in the liquid.",
+        startContents: "Pure Water (H₂O) [Liquid]",
+        init: () => {
+          state = { phase: 'idle', color: [150, 220, 255, 0.6] };
+          particles = []; crystals = [];
+        },
+        buttons: [{
+          text: "🧂 Add Salt Crystals",
+          color: "bg-blue-400 hover:bg-blue-500 text-white",
+          action: () => {
+            for(let i=0; i<20; i++) {
+              crystals.push({
+                x: 400 + (Math.random() - 0.5) * 120, y: 150 + Math.random() * 50,
+                vy: Math.random() * 3 + 1, size: Math.random() * 12 + 6,
+                alpha: 1.0, settled: false, rot: Math.random() * Math.PI
+              });
+            }
+            document.getElementById('contents-text').innerHTML = "Water + <span class='text-blue-500'>Na⁺ and Cl⁻ ions [Dissolving]</span>";
+          }
+        }],
+        update: () => {
+          crystals.forEach(p => {
+            if(!p.settled) {
+              p.y += p.vy; p.rot += 0.05;
+              if(p.y > 440) p.settled = true;
+            } else { p.alpha -= 0.003; }
+          });
+          crystals = crystals.filter(p => p.alpha > 0);
+        },
+        draw: (ctx) => {
+          drawBeaker(ctx);
+          drawLiquid(ctx, `rgba(${state.color.join(',')})`, 220, 200);
+          crystals.forEach(p => {
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+            ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`;
+            ctx.shadowBlur = 10; ctx.shadowColor = 'white';
+            ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+            ctx.restore();
+          });
+        }
+      },
+
+      cabbage: {
+        title: "Magic Color Potion",
+        formula: "Indicator Pigment + Ions",
+        desc: "This magical cabbage juice changes color! It turns pink if there are lots of Acid ions, and green if there are lots of Base ions.",
+        startContents: "Anthocyanin Indicator [Neutral Purple]",
+        init: () => {
+          state = { color: [160, 100, 220, 0.8], targetColor: [160, 100, 220, 0.8] };
+          particles = []; crystals = [];
+        },
+        buttons: [
+          {
+            text: "🍋 Add Acid", color: "bg-rose-400 hover:bg-rose-500 text-white",
+            action: () => { 
+              state.targetColor = [255, 100, 150, 0.8]; 
+              document.getElementById('contents-text').innerHTML = "<span class='text-rose-500'>Acidic Solution [High H⁺ Ions]</span>"; 
+            }
+          },
+          {
+            text: "🧼 Add Base", color: "bg-teal-400 hover:bg-teal-500 text-white",
+            action: () => { 
+              state.targetColor = [100, 220, 180, 0.8]; 
+              document.getElementById('contents-text').innerHTML = "<span class='text-teal-500'>Basic Solution [High OH⁻ Ions]</span>"; 
+            }
+          }
+        ],
+        update: () => {
+          for(let i=0; i<4; i++) state.color[i] = lerp(state.color[i], state.targetColor[i], 0.03);
+        },
+        draw: (ctx) => { drawBeaker(ctx); drawLiquid(ctx, `rgba(${state.color.join(',')})`, 200, 200); }
+      },
+
+      redox: {
+        title: "Color Clearing",
+        formula: "KMnO₄ + H₂O₂ → Clear + O₂",
+        desc: "The dark purple chemical trades its electrons with the peroxide. This destroys the dark color, turning it into clear water and pure oxygen!",
+        startContents: "Potassium Permanganate [Opaque Purple]",
+        init: () => {
+          state = { phase: 'idle', color: [120, 30, 180, 0.95], targetColor: [120, 30, 180, 0.95] };
+          particles = []; crystals = [];
+        },
+        buttons: [{
+          text: "💧 Add Peroxide",
+          color: "bg-cyan-400 hover:bg-cyan-500 text-white",
+          action: () => {
+            state.phase = 'reacting';
+            state.targetColor = [220, 245, 255, 0.5]; 
+            document.getElementById('contents-text').innerHTML = "Clear Water + <span class='text-cyan-500'>Oxygen (O₂) Gas bubbles</span>";
+          }
+        }],
+        update: () => {
+          for(let i=0; i<4; i++) state.color[i] = lerp(state.color[i], state.targetColor[i], 0.015);
+          if(state.phase === 'reacting' && Math.random() > 0.4) {
+             particles.push({
+              x: 400 + (Math.random() - 0.5) * 160, y: 450,
+              vx: (Math.random() - 0.5), vy: -Math.random() * 2 - 1,
+              radius: Math.random() * 5 + 2, alpha: 0.8
+            });
+          }
+          particles.forEach(p => { p.y += p.vy; p.x += p.vx; p.alpha -= 0.005; });
+          particles = particles.filter(p => p.alpha > 0 && p.y > 250);
+        },
+        draw: (ctx) => {
+          drawBeaker(ctx); drawLiquid(ctx, `rgba(${state.color.join(',')})`, 200, 200);
+          drawBubbles(ctx, particles);
+        }
+      }
+    };
+
+    // --- 3. CANVAS DRAWING HELPERS (Glass Style) ---
+    function drawBeaker(ctx) {
+      ctx.save();
+      // Thick white glass
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.lineWidth = 8;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(290, 150); // Lip L
+      ctx.lineTo(310, 150); // Neck L
+      ctx.lineTo(310, 440); // Body L
+      ctx.quadraticCurveTo(310, 460, 330, 460); // Corner L
+      ctx.lineTo(470, 460); // Bottom
+      ctx.quadraticCurveTo(490, 460, 490, 440); // Corner R
+      ctx.lineTo(490, 150); // Body R
+      ctx.lineTo(510, 150); // Lip R
+      ctx.stroke();
+
+      // Glass glares
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(325, 200); ctx.lineTo(325, 380); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(475, 350); ctx.lineTo(475, 420); ctx.stroke();
+      
+      // Measurement marks
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(255,255,255,0.7)";
+      for(let y=200; y<=400; y+=50) {
+        ctx.beginPath(); ctx.moveTo(310, y); ctx.lineTo(330, y); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawBottle(ctx) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.lineWidth = 8;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(370, 150); ctx.lineTo(370, 250); 
+      ctx.quadraticCurveTo(370, 280, 320, 310); 
+      ctx.lineTo(320, 440); ctx.quadraticCurveTo(320, 460, 340, 460); 
+      ctx.lineTo(460, 460); ctx.quadraticCurveTo(480, 460, 480, 440); 
+      ctx.lineTo(480, 310); ctx.quadraticCurveTo(430, 280, 430, 250); 
+      ctx.lineTo(430, 150); ctx.stroke();
+      
+      // Glare
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(335, 330); ctx.lineTo(335, 420); ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawLiquid(ctx, colorString, height, width) {
+      ctx.save();
+      // Clip to beaker shape so liquid doesn't bleed out
+      ctx.beginPath();
+      let startX = 400 - (width/2) + 4;
+      let w = width - 8;
+      let y = 456 - height;
+      ctx.rect(startX, y, w, height);
+      ctx.clip();
+
+      // Fluid gradient
+      let grad = ctx.createLinearGradient(0, y, 0, 456);
+      grad.addColorStop(0, colorString.replace(/[\d.]+\)$/g, '0.4)')); // lighter top
+      grad.addColorStop(1, colorString); // darker bottom
+      
+      ctx.fillStyle = grad;
+      ctx.fillRect(startX, y, w, height);
+
+      // Liquid top surface line
+      ctx.fillStyle = "rgba(255,255,255,0.3)";
+      ctx.fillRect(startX, y, w, 8);
+      ctx.restore();
+    }
+
+    function drawBubbles(ctx, parts) {
+      ctx.save();
+      parts.forEach(p => {
+        ctx.beginPath(); 
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); 
+        ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`;
+        ctx.fill();
+        // Bubble highlight
+        ctx.beginPath();
+        ctx.arc(p.x - p.radius*0.3, p.y - p.radius*0.3, p.radius*0.2, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha + 0.2})`;
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    // --- 4. SCENE MANAGEMENT & UI ---
+    function loadExperiment(key) {
+      currentExpId = key;
+      const exp = experiments[key];
+
+      // Update Texts
+      document.getElementById('info-title').innerText = exp.title;
+      document.getElementById('info-formula').innerText = exp.formula;
+      document.getElementById('info-desc').innerText = exp.desc;
+      document.getElementById('status-text').innerText = "Ready to cast some science!";
+      document.getElementById('contents-text').innerText = exp.startContents;
+
+      // Render Menu
+      const menuContainer = document.getElementById('menu-buttons');
+      menuContainer.innerHTML = '';
+      Object.keys(experiments).forEach(k => {
+        const btn = document.createElement('button');
+        btn.innerText = experiments[k].title;
+        btn.onclick = () => loadExperiment(k);
+        let isActive = k === key;
+        btn.className = `text-left px-5 py-3 rounded-2xl border-2 transition-all font-bold shadow-sm ${
+          isActive ? 'bg-white border-pink-300 text-pink-600 scale-[1.02]' : 'bg-white/50 border-transparent text-slate-500 hover:bg-white/80'
+        }`;
+        menuContainer.appendChild(btn);
+      });
+
+      // Render Actions
+      const btnContainer = document.getElementById('action-buttons-container');
+      btnContainer.innerHTML = '';
+      
+      exp.buttons.forEach(b => {
+        const actionBtn = document.createElement('button');
+        actionBtn.innerText = b.text;
+        actionBtn.className = `px-5 py-2.5 rounded-xl font-extrabold shadow-md transition-all ${b.color}`;
+        actionBtn.onclick = b.action;
+        btnContainer.appendChild(actionBtn);
+      });
+
+      const resetBtn = document.createElement('button');
+      resetBtn.innerText = "↻ Clean Beaker";
+      resetBtn.className = "px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold rounded-xl transition-all shadow-md";
+      resetBtn.onclick = () => loadExperiment(currentExpId);
+      btnContainer.appendChild(resetBtn);
+
+      exp.init();
+    }
+
+    // --- 5. ANIMATION LOOP ---
+    function animate() {
+      // Clear with transparency to keep pastel background
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (currentExpId) {
+        experiments[currentExpId].update();
+        experiments[currentExpId].draw(ctx);
+      }
+      animationFrameId = requestAnimationFrame(animate);
+    }
+
+    loadExperiment('volcano');
+    animate();
+
+  </script>
+</body>
+</html>
