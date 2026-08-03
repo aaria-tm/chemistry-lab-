@@ -1,5 +1,4 @@
-# chemistry-lab-
-# Aaria's Magic Lab
+# chemistry-lab
 
 A fun, beautiful, and interactive virtual science lab built for kids! It combines colorful chemical animations with simple science lessons using a cozy, frosted-glass design.
 
